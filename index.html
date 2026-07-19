@@ -354,25 +354,38 @@
 
             Swal.fire({
                 title: 'กำลังบันทึกข้อมูล...',
-                text: `กำลังส่งข้อมูลตะกร้าสินค้าทั้งหมด ${items.length} รายการ`,
+                text: `กำลังประมวลผลสต็อกทั้งหมด ${items.length} รายการ`,
                 allowOutsideClick: false,
                 allowEscapeKey: false,
                 didOpen: () => { Swal.showLoading(); }
             });
 
+            // 🌟 1. คำนวณค่า Checksum จากผลรวมจำนวนสินค้าทั้งหมดในตะกร้าฝั่งหน้าบ้าน
+            const clientChecksum = items.reduce((sum, item) => sum + parseInt(item.qty || 0), 0);
+
             try {
-                // 🌟 ส่งข้อมูลรวบยอดแบบ text/plain เพื่อให้ทะลุผ่าน CORS ปลอดภัย 100%
-                await fetch(API_URL, {
+                // เตรียมข้อมูลส่งในรูปแบบ FormData เพื่อให้หน้าบ้านสามารถอ่าน Response ตอบกลับจากหลังบ้านได้
+                const formData = new FormData();
+                const payload = {
+                    type: type,
+                    note: note,
+                    batchMode: true,
+                    items: items,
+                    checksum: clientChecksum // ส่งค่า checksum ไปให้หลังบ้านตรวจ
+                };
+        
+                formData.append('jsonData', JSON.stringify(payload));
+
+                // 🌟 2. เปลี่ยนมา fetch แบบปกติเพื่อให้ได้ข้อมูลสถานะที่แท้จริงกลับมา
+                const response = await fetch(API_URL, {
                     method: 'POST',
-                    mode: 'no-cors', 
-                    headers: { 
-                        'Content-Type': 'text/plain'
-                    },
-                    body: JSON.stringify({ type, note, batchMode: true, items })
+                    body: formData
                 });
 
-                // หน่วงเวลาให้ Apps Script หลังบ้านทำลูปอัปเดตแผ่นงานให้เสร็จสิ้น
-                setTimeout(() => {
+                const result = await response.json();
+
+                // 🌟 3. ตรวจสอบผลลัพธ์จากหลังบ้าน หากหลังบ้านแจ้งตีกลับมาว่าพัง จะเด้งสีแดงแจ้งเตือนทันที
+                if (result.status === "success") {
                     Swal.fire({
                         title: 'สำเร็จ!',
                         text: 'บันทึกสต็อกและประวัติลง Logs ทุกรายการเรียบร้อยแล้ว',
@@ -380,12 +393,18 @@
                         timer: 1500,
                         showConfirmButton: false
                     });
-                    loadStockData(); // รีเฟรชตารางหน้าจอ
-                }, 1500);
+                    loadStockData(); // รีเฟรชหน้าจอ GUI
+                } else {
+                    Swal.fire({
+                        title: 'เกิดข้อผิดพลาดจากระบบหลังบ้าน',
+                        text: result.message || 'ข้อมูลไม่ถูกต้อง',
+                        icon: 'error'
+                    });
+                }
 
             } catch (error) {
                 console.error("Error submitting cart:", error);
-                Swal.fire('เกิดข้อผิดพลาด', 'ไม่สามารถส่งข้อมูลไปยังเซิร์ฟเวอร์หลังบ้านได้ กรุณาลองใหม่', 'error');
+                Swal.fire('เกิดข้อผิดพลาด', 'ไม่สามารถเชื่อมต่อเครือข่ายได้ หรือข้อมูลสูญหายระหว่างทาง กรุณาลองใหม่อีกครั้ง', 'error');
             }
         }
         window.onload = loadStockData;
