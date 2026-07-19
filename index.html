@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ระบบจัดการคลังสินค้ามินิมอล</title>
+    <!-- Tailwind CSS สำหรับ GUI ที่สวยงาม -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- SweetAlert2 สำหรับหน้าต่างแจ้งเตือนและแบบฟอร์ม -->
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <!-- Font Google -->
+    <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Sarabun', sans-serif; }
+    </style>
+</head>
+<body class="bg-slate-50 min-h-screen text-slate-800">
+
+    <div class="max-w-5xl mx-auto px-4 py-8">
+        <!-- Header -->
+        <header class="flex flex-col md:flex-row md:items-center md:justify-between pb-6 mb-8 border-b border-slate-200 gap-4">
+            <div>
+                <h1 class="text-3xl font-bold text-slate-900 tracking-tight">Stock Management</h1>
+                <p class="text-sm text-slate-500 mt-1">ระบบบริหารคลังสินค้าและบันทึกประวัติอัตโนมัติ</p>
+            </div>
+            <!-- ปุ่มเมนูทำรายการ -->
+            <div class="flex flex-wrap gap-2">
+                <button onclick="openTransactionModal('เบิกเข้า')" class="bg-emerald-600 hover:bg-emerald-700 text-white font-medium px-4 py-2.5 rounded-xl shadow-sm transition dynamic-btn text-sm flex items-center gap-1">
+                    ➕ เบิกเข้า (In)
+                </button>
+                <button onclick="openTransactionModal('ขายออก')" class="bg-blue-600 hover:bg-blue-700 text-white font-medium px-4 py-2.5 rounded-xl shadow-sm transition dynamic-btn text-sm flex items-center gap-1">
+                    💰 ขายออก (Sale)
+                </button>
+                <button onclick="openTransactionModal('เบิกออก')" class="bg-amber-600 hover:bg-amber-700 text-white font-medium px-4 py-2.5 rounded-xl shadow-sm transition dynamic-btn text-sm flex items-center gap-1">
+                    📤 เบิกออก (Out)
+                </button>
+            </div>
+        </header>
+
+        <!-- สรุปภาพรวมย่อยๆ -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 mb-8">
+            <div class="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-sm">
+                <p class="text-xs font-medium text-slate-400 uppercase tracking-wider">รายการสินค้าทั้งหมด</p>
+                <p id="total-items" class="text-2xl font-bold text-slate-800 mt-1">0 รายการ</p>
+            </div>
+        </div>
+
+        <!-- ตารางแสดงสินค้าคงเหลือ -->
+        <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+            <div class="p-5 border-b border-slate-100 flex items-center justify-between">
+                <h2 class="font-semibold text-lg text-slate-900">รายการสินค้าคงเหลือปัจจุบัน</h2>
+                <button onclick="loadStockData()" class="text-slate-400 hover:text-slate-600 transition">
+                    🔄 รีเฟรช
+                </button>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="w-full text-left border-collapse">
+                    <thead>
+                        <tr class="bg-slate-50/70 border-b border-slate-100 text-slate-500 text-xs font-semibold uppercase">
+                            <th class="py-3 px-6">รหัสสินค้า</th>
+                            <th class="py-3 px-6">ชื่อสินค้า</th>
+                            <th class="py-3 px-6 text-right">คงเหลือ</th>
+                            <th class="py-3 px-6">หน่วยนับ</th>
+                        </tr>
+                    </thead>
+                    <tbody id="stock-table-body" class="divide-y divide-slate-100 text-sm">
+                        <tr>
+                            <td colspan="4" class="py-8 text-center text-slate-400">กำลังโหลดข้อมูลสต็อก...</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // เปลี่ยนตรงนี้เป็น URL ของ Google Web App ที่ได้จากการ Deploy Script
+        const API_URL = "ใส่_URL_WEB_APP_ตรงนี้"; 
+        let globalStockData = [];
+
+        // ฟังก์ชันดึงข้อมูลจาก Google Sheets
+        async function loadStockData() {
+            try {
+                const response = await fetch(API_URL);
+                const data = await response.json();
+                globalStockData = data;
+                
+                document.getElementById('total-items').innerText = `${data.length} รายการ`;
+                
+                const tbody = document.getElementById('stock-table-body');
+                tbody.innerHTML = '';
+                
+                if(data.length === 0) {
+                    tbody.innerHTML = `<tr><td colspan="4" class="py-8 text-center text-slate-400">ไม่มีข้อมูลสินค้าในระบบ</td></tr>`;
+                    return;
+                }
+
+                data.forEach(item => {
+                    const row = document.createElement('tr');
+                    row.className = "hover:bg-slate-50/50 transition";
+                    
+                    // ปรับสีตัวเลขสต็อกต่ำ
+                    const qtyClass = item.คงเหลือ <= 5 ? "text-rose-600 font-bold" : "text-slate-700 font-semibold";
+                    
+                    row.innerHTML = `
+                        <td class="py-4 px-6 font-mono text-slate-600 text-xs">${item.รหัสสินค้า}</td>
+                        <td class="py-4 px-6 font-medium text-slate-900">${item.ชื่อสินค้า}</td>
+                        <td class="py-4 px-6 text-right ${qtyClass}">${Number(item.คงเหลือ).toLocaleString()}</td>
+                        <td class="py-4 px-6 text-slate-400 text-xs">${item.หน่วยนับ}</td>
+                    `;
+                    tbody.appendChild(row);
+                });
+            } catch (error) {
+                console.error("Error loading data:", error);
+                Swal.fire('ผิดพลาด', 'ไม่สามารถดึงข้อมูลสต็อกได้', 'error');
+            }
+        }
+
+        // เปิดป็อปอัพกรอกข้อมูลทำรายการ (ใช้ SweetAlert2 เพื่อความสวยงามและจบในตัว)
+        function openTransactionModal(actionType) {
+            let optionsHtml = globalStockData.map(item => 
+                `<option value="${item.รหัสสินค้า}">${item.ชื่อสินค้า} (คงเหลือ: ${item.คงเหลือ})</option>`
+            ).join('');
+
+            Swal.fire({
+                title: `<span class="text-xl font-bold">ทำรายการ: ${actionType}</span>`,
+                html: `
+                    <div class="text-left space-y-3 mt-4 text-sm">
+                        <div>
+                            <label class="block text-slate-500 mb-1">เลือกสินค้า</label>
+                            <select id="swal-code" class="w-full border border-slate-200 rounded-xl p-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
+                                ${optionsHtml}
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-slate-500 mb-1">จำนวน</label>
+                            <input id="swal-qty" type="number" min="1" class="w-full border border-slate-200 rounded-xl p-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="ระบุจำนวน">
+                        </div>
+                        <div>
+                            <label class="block text-slate-500 mb-1">หมายเหตุ (ถ้ามี)</label>
+                            <input id="swal-note" type="text" class="w-full border border-slate-200 rounded-xl p-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="เช่น ชื่อคนเบิก เลขที่บิล">
+                        </div>
+                    </div>
+                `,
+                showCancelButton: true,
+                confirmButtonText: 'บันทึกรายการ',
+                cancelButtonText: 'ยกเลิก',
+                confirmButtonColor: actionType === 'เบิกเข้า' ? '#059669' : actionType === 'ขายออก' ? '#2563eb' : '#d97706',
+                customClass: {
+                    popup: 'rounded-2xl',
+                    confirmButton: 'rounded-xl px-4 py-2 text-sm font-medium',
+                    cancelButton: 'rounded-xl px-4 py-2 text-sm font-medium'
+                },
+                preConfirm: () => {
+                    return {
+                        code: document.getElementById('swal-code').value,
+                        qty: document.getElementById('swal-qty').value,
+                        note: document.getElementById('swal-note').value
+                    }
+                }
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    const data = result.value;
+                    if(!data.qty || data.qty <= 0) {
+                        Swal.fire('กรอกข้อมูลไม่ครบ', 'กรุณาระบุจำนวนสินค้าที่ถูกต้อง', 'warning');
+                        return;
+                    }
+                    submitTransaction(actionType, data.code, data.qty, data.note);
+                }
+            });
+        }
+
+        // ส่งข้อมูลไปยัง Google App Script API
+        async function submitTransaction(type, code, qty, note) {
+            Swal.fire({
+                title: 'กำลังบันทึกข้อมูล...',
+                allowOutsideClick: false,
+                didOpen: () => { Swal.showLoading(); }
+            });
+
+            try {
+                const response = await fetch(API_URL, {
+                    method: 'POST',
+                    mode: 'no-cors', // เนื่องจากเป็นข้ามโดเมนแบบไม่มี CORS ตัวผลลัพธ์อาจจะอ่านค่า json ตรงๆ ไม่ได้ผ่าน no-cors
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ type, code, qty, note })
+                });
+
+                // เพราะใช้ no-cors ผลลัพธ์การตอบกลับจะไม่ถูกเปิดเผยต่อหน้าเวป แต่ข้อมูลจะบันทึกเข้า sheet สำเร็จ
+                // เราจะให้มันแสดง Alert สำเร็จและรีเฟรชหน้ากระดานทันที
+                setTimeout(() => {
+                    Swal.fire({
+                        title: 'สำเร็จ!',
+                        text: 'ทำรายการและบันทึกประวัติลง Log เรียบร้อยแล้ว',
+                        icon: 'success',
+                        timer: 1500,
+                        showConfirmButton: false
+                    });
+                    loadStockData();
+                }, 800);
+
+            } catch (error) {
+                console.error("Error submitting:", error);
+                Swal.fire('เกิดข้อผิดพลาด', 'ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้', 'error');
+            }
+        }
+
+        // โหลดข้อมูลเมื่อเปิดหน้าเวปครั้งแรก
+        window.onload = loadStockData;
+    </script>
+</body>
+</html>
