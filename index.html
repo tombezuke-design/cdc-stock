@@ -203,15 +203,29 @@
             }
         }
     }).then((result) => {
-        if (result.isConfirmed) {
-            const data = result.value;
-            if(!data.code || !data.expiry || !data.qty || data.qty <= 0) {
-                Swal.fire('กรอกข้อมูลไม่ครบ', 'กรุณาระบุข้อมูลสต็อก วันหมดอายุ และจำนวนสินค้าให้ถูกต้อง', 'warning');
-                return;
-            }
-            submitTransaction(actionType, data.code, data.expiry, data.qty, data.note);
+    if (result.isConfirmed) {
+        const data = result.value;
+        if(!data.code || !data.expiry || !data.qty || data.qty <= 0) {
+            Swal.fire('กรอกข้อมูลไม่ครบ', 'กรุณาระบุข้อมูลสต็อก วันหมดอายุ และจำนวนสินค้าให้ถูกต้อง', 'warning');
+            return;
         }
-    });
+
+        // 🌟 จุดแก้ไขสำคัญ: ดักจับแปลงฟอร์แมตวันที่เป็น ปี-เดือน-วัน ก่อนส่งไปหลังบ้าน
+        let finalExpiry = data.expiry;
+        if (finalExpiry && finalExpiry !== "ไม่มี") {
+            const dateObj = new Date(finalExpiry);
+            if (!isNaN(dateObj.getTime())) {
+                const yyyy = dateObj.getFullYear();
+                const mm = String(dateObj.getMonth() + 1).padStart(2, '0');
+                const dd = String(dateObj.getDate()).padStart(2, '0');
+                finalExpiry = `${yyyy}-${mm}-${dd}`;
+            }
+        }
+        
+        // ส่งข้อมูลที่แปลงฟอร์แมตวันที่เรียบร้อยแล้วไปทำงาน
+        submitTransaction(actionType, data.code, finalExpiry, data.qty, data.note);
+    }
+});
 }
 
 function updateExpiryOptions(actionType) {
@@ -250,7 +264,8 @@ function updateExpiryOptions(actionType) {
 
         // ส่งข้อมูลไปยัง Google App Script API
        // ส่งข้อมูลไปยัง Google App Script API (เวอร์ชันเพิ่มระบบป้องกันการกดซ้ำ)
-async function submitTransaction(type, code, qty, note) {
+// 🌟 เวอร์ชันแก้ไข: เพิ่มการรับและส่งค่า expiry ไปหลังบ้าน
+async function submitTransaction(type, code, expiry, qty, note) {
     // 1. ดึงปุ่มใน SweetAlert ออกมาแล้วสั่งปิดใช้งาน (Disable) ทันที ป้องกันการคลิกซ้ำ
     const confirmButton = Swal.getConfirmButton();
     const cancelButton = Swal.getCancelButton();
@@ -260,7 +275,7 @@ async function submitTransaction(type, code, qty, note) {
     // 2. แสดงสถานะกำลังบันทึกข้อมูล และบล็อกหน้าจอทั้งหมดไว้
     Swal.fire({
         title: 'กำลังบันทึกข้อมูล...',
-        text: 'กรุณารอสักครู่ ระบบกำลังอัปเดตสต็อก',
+        text: 'กรุณารอสักครู่ ระบบกำลังอัปเดตสต็อกตามล็อต',
         allowOutsideClick: false,
         allowEscapeKey: false,
         didOpen: () => { 
@@ -273,7 +288,8 @@ async function submitTransaction(type, code, qty, note) {
             method: 'POST',
             mode: 'no-cors', 
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ type, code, qty, note })
+            // 🌟 จุดแก้ไขสำคัญ: เพิ่ม expiry เข้าไปใน JSON.stringify เพื่อส่งไปให้ doPost
+            body: JSON.stringify({ type, code, expiry, qty, note })
         });
 
         // หน่วงเวลาเล็กน้อยเพื่อให้ชัวร์ว่า Google Sheets ทำงานเสร็จสิ้น จากนั้นแจ้งเตือนและรีเฟรชสต็อก
