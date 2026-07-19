@@ -101,14 +101,18 @@
                     const row = document.createElement('tr');
                     row.className = "hover:bg-slate-50/50 transition";
     
-                    // 1. คำนวณแถบสีเตือนวันหมดอายุ (หมดอายุแล้ว=แดง / ใกล้หมดอายุใน 60 วัน=ส้ม)
-                    const expiryDate = new Date(item["ล็อต/วันหมดอายุ"]);
+                // 🌟 1. ตัดรูปแบบเวลา ISO ออกให้เหลือเฉพาะปฏิทิน YYYY-MM-DD
+                    let rawExpiry = item["ล็อต/วันหมดอายุ"] ? item["ล็อต/วันหมดอายุ"].toString() : "";
+                    let cleanExpiry = rawExpiry.includes('T') ? rawExpiry.split('T')[0] : rawExpiry;
+
+                // 2. คำนวณแถบสีเตือนวันหมดอายุ (หมดอายุแล้ว=แดง / ใกล้หมดอายุใน 60 วัน=ส้ม)
+                    const expiryDate = new Date(cleanExpiry);
                     const today = new Date();
                     const diffTime = expiryDate - today;
                     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
     
                     let expiryClass = "text-slate-600";
-                    if (item["ล็อต/วันหมดอายุ"] === "ไม่มี") {
+                    if (cleanExpiry === "ไม่มี") {
                         expiryClass = "text-slate-400 font-medium bg-slate-100 px-2 py-0.5 rounded";
                     } else if (diffDays <= 0) {
                         expiryClass = "text-rose-600 font-bold bg-rose-50 px-2 py-0.5 rounded";
@@ -116,14 +120,14 @@
                         expiryClass = "text-amber-600 font-semibold bg-amber-50 px-2 py-0.5 rounded";
                     }
 
-                    // 2. ปรับสีตัวเลขสต็อกต่ำ
+                    // 3. ปรับสีตัวเลขสต็อกต่ำ
                     const qtyClass = item.คงเหลือ <= 5 ? "text-rose-600 font-bold" : "text-slate-700 font-semibold";
     
-                    // 3. เพิ่มช่อง <td> สำหรับแสดงวันหมดอายุเข้าไปในตาราง (คอลัมน์ที่ 3)
+                    // 4. แสดงผลข้อมูลเวอร์ชันสะอาดตา
                     row.innerHTML = `
                         <td class="py-4 px-6 font-mono text-slate-600 text-xs">${item.รหัสสินค้า}</td>
                         <td class="py-4 px-6 font-medium text-slate-900">${item.ชื่อสินค้า}</td>
-                        <td class="py-4 px-6 text-xs ${expiryClass}">${item["ล็อต/วันหมดอายุ"] || '-'}</td>
+                        <td class="py-4 px-6 text-xs ${expiryClass}">${cleanExpiry || '-'}</td>
                         <td class="py-4 px-6 text-right ${qtyClass}">${Number(item.คงเหลือ).toLocaleString()}</td>
                         <td class="py-4 px-6 text-slate-400 text-xs">${item.หน่วยนับ}</td>
                     `;
