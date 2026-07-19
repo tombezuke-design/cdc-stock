@@ -141,57 +141,112 @@
 
         // เปิดป็อปอัพกรอกข้อมูลทำรายการ (ใช้ SweetAlert2 เพื่อความสวยงามและจบในตัว)
         function openTransactionModal(actionType) {
-            let optionsHtml = globalStockData.map(item => 
-                `<option value="${item.รหัสสินค้า}">${item.ชื่อสินค้า} (คงเหลือ: ${item.คงเหลือ})</option>`
-            ).join('');
-
-            Swal.fire({
-                title: `<span class="text-xl font-bold">ทำรายการ: ${actionType}</span>`,
-                html: `
-                    <div class="text-left space-y-3 mt-4 text-sm">
-                        <div>
-                            <label class="block text-slate-500 mb-1">เลือกสินค้า</label>
-                            <select id="swal-code" class="w-full border border-slate-200 rounded-xl p-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
-                                ${optionsHtml}
-                            </select>
-                        </div>
-                        <div>
-                            <label class="block text-slate-500 mb-1">จำนวน</label>
-                            <input id="swal-qty" type="number" min="1" class="w-full border border-slate-200 rounded-xl p-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="ระบุจำนวน">
-                        </div>
-                        <div>
-                            <label class="block text-slate-500 mb-1">หมายเหตุ (ถ้ามี)</label>
-                            <input id="swal-note" type="text" class="w-full border border-slate-200 rounded-xl p-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="เช่น ชื่อคนเบิก เลขที่บิล">
-                        </div>
-                    </div>
-                `,
-                showCancelButton: true,
-                confirmButtonText: 'บันทึกรายการ',
-                cancelButtonText: 'ยกเลิก',
-                confirmButtonColor: actionType === 'เบิกเข้า' ? '#059669' : actionType === 'ขายออก' ? '#2563eb' : '#d97706',
-                customClass: {
-                    popup: 'rounded-2xl',
-                    confirmButton: 'rounded-xl px-4 py-2 text-sm font-medium',
-                    cancelButton: 'rounded-xl px-4 py-2 text-sm font-medium'
-                },
-                preConfirm: () => {
-                    return {
-                        code: document.getElementById('swal-code').value,
-                        qty: document.getElementById('swal-qty').value,
-                        note: document.getElementById('swal-note').value
-                    }
-                }
-            }).then((result) => {
-                if (result.isConfirmed) {
-                    const data = result.value;
-                    if(!data.qty || data.qty <= 0) {
-                        Swal.fire('กรอกข้อมูลไม่ครบ', 'กรุณาระบุจำนวนสินค้าที่ถูกต้อง', 'warning');
-                        return;
-                    }
-                    submitTransaction(actionType, data.code, data.qty, data.note);
-                }
-            });
+    // กรองเอาเฉพาะรายชื่อสินค้าแบบไม่ซ้ำกัน เพื่อแสดงใน Select สินค้าตัวแรก
+    const uniqueProducts = [];
+    const map = new Map();
+    for (const item of globalStockData) {
+        if(!map.has(item.รหัสสินค้า)){
+            map.set(item.รหัสสินค้า, true);
+            uniqueProducts.push({ code: item.รหัสสินค้า, name: item.ชื่อสินค้า });
         }
+    }
+
+    let productOptionsHtml = uniqueProducts.map(p => 
+        `<option value="${p.code}">${p.name}</option>`
+    ).join('');
+
+    Swal.fire({
+        title: `<span class="text-xl font-bold">ทำรายการ: ${actionType}</span>`,
+        html: `
+            <div class="text-left space-y-3 mt-4 text-sm">
+                <div>
+                    <label class="block text-slate-500 mb-1">เลือกสินค้า</label>
+                    <select id="swal-code" onchange="updateExpiryOptions('${actionType}')" class="w-full border border-slate-200 rounded-xl p-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
+                        <option value="">-- เลือกสินค้า --</option>
+                        ${productOptionsHtml}
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-slate-500 mb-1">ล็อต / วันหมดอายุ</label>
+                    <div id="expiry-input-container">
+                        <!-- ส่วนนี้จะถูกเปลี่ยนสลับตามประเภทรายการโดยฟังก์ชัน updateExpiryOptions -->
+                        <select id="swal-expiry" class="w-full border border-slate-200 rounded-xl p-2.5 bg-slate-50 text-slate-400" disabled>
+                            <option value="">-- กรุณาเลือกสินค้าก่อน --</option>
+                        </select>
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-slate-500 mb-1">จำนวน</label>
+                    <input id="swal-qty" type="number" min="1" class="w-full border border-slate-200 rounded-xl p-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="ระบุจำนวน">
+                </div>
+                <div>
+                    <label class="block text-slate-500 mb-1">หมายเหตุ (ถ้ามี)</label>
+                    <input id="swal-note" type="text" class="w-full border border-slate-200 rounded-xl p-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="เช่น ชื่อคนเบิก เลขที่บิล">
+                </div>
+            </div>
+        `,
+        showCancelButton: true,
+        confirmButtonText: 'บันทึกรายการ',
+        cancelButtonText: 'ยกเลิก',
+        confirmButtonColor: actionType === 'เบิกเข้า' ? '#059669' : actionType === 'ขายออก' ? '#2563eb' : '#d97706',
+        customClass: {
+            popup: 'rounded-2xl',
+            confirmButton: 'rounded-xl px-4 py-2 text-sm font-medium',
+            cancelButton: 'rounded-xl px-4 py-2 text-sm font-medium'
+        },
+        preConfirm: () => {
+            return {
+                code: document.getElementById('swal-code').value,
+                expiry: document.getElementById('swal-expiry').value,
+                qty: document.getElementById('swal-qty').value,
+                note: document.getElementById('swal-note').value
+            }
+        }
+    }).then((result) => {
+        if (result.isConfirmed) {
+            const data = result.value;
+            if(!data.code || !data.expiry || !data.qty || data.qty <= 0) {
+                Swal.fire('กรอกข้อมูลไม่ครบ', 'กรุณาระบุข้อมูลสต็อก วันหมดอายุ และจำนวนสินค้าให้ถูกต้อง', 'warning');
+                return;
+            }
+            submitTransaction(actionType, data.code, data.expiry, data.qty, data.note);
+        }
+    });
+}
+
+function updateExpiryOptions(actionType) {
+    const code = document.getElementById('swal-code').value;
+    const container = document.getElementById('expiry-input-container');
+    
+    if(!code) {
+        container.innerHTML = `<select id="swal-expiry" class="w-full border border-slate-200 rounded-xl p-2.5 bg-slate-50 text-slate-400" disabled><option value="">-- กรุณาเลือกสินค้าก่อน --</option></select>`;
+        return;
+    }
+
+    if(actionType === 'เบิกเข้า') {
+        // 🌟 แก้ไข: บังคับให้สร้าง Input type="date" ขึ้นมาบน GUI ทันทีเมื่อกดเลือกสินค้า เพื่อให้ระบุวันหมดอายุของล็อตที่จะเบิกเข้า
+        container.innerHTML = `<input id="swal-expiry" type="date" class="w-full border border-slate-200 rounded-xl p-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">`;
+    } else {
+        // ขายออก/เบิกออก: ดึงเฉพาะล็อตวันหมดอายุที่มีของคงเหลืออยู่มาเรียงแสดง (ล็อตหมดอายุก่อนขึ้นแรกสุด - FEFO)
+        const lots = globalStockData
+            .filter(item => item.รหัสสินค้า === code && item.คงเหลือ > 0)
+            .sort((a, b) => new Date(a["ล็อต/วันหมดอายุ"]) - new Date(b["ล็อต/วันหมดอายุ"]));
+            
+        if(lots.length === 0) {
+            container.innerHTML = `<select id="swal-expiry" class="w-full border border-slate-200 rounded-xl p-2.5 bg-rose-50 text-rose-500 font-medium" disabled><option value="">❌ ไม่มีสินค้าล็อตคงเหลือในระบบ</option></select>`;
+            return;
+        }
+
+        let optionsHtml = lots.map(item => {
+            // ดึงรูปแบบวันที่มาตัดเวลาออกเพื่อโชว์ในตัวเลือกแบบสะอาดตา
+            let rawExp = item["ล็อต/วันหมดอายุ"] ? item["ล็อต/วันหมดอายุ"].toString() : "";
+            let cleanExp = rawExp.includes('T') ? rawExp.split('T')[0] : rawExp;
+            return `<option value="${cleanExp}">${cleanExp} (คงเหลือ: ${item.คงเหลือ})</option>`;
+        }).join('');
+        
+        container.innerHTML = `<select id="swal-expiry" class="w-full border border-slate-200 rounded-xl p-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">${optionsHtml}</select>`;
+    }
+}
 
         // ส่งข้อมูลไปยัง Google App Script API
        // ส่งข้อมูลไปยัง Google App Script API (เวอร์ชันเพิ่มระบบป้องกันการกดซ้ำ)
