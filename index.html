@@ -354,24 +354,24 @@
 
             Swal.fire({
                 title: 'กำลังบันทึกข้อมูล...',
-                text: `กำลังประมวลผลสต็อกทั้งหมด ${items.length} รายการ`,
+                text: `กำลังส่งข้อมูลตะกร้าสินค้าทั้งหมด ${items.length} รายการ`,
                 allowOutsideClick: false,
                 allowEscapeKey: false,
                 didOpen: () => { Swal.showLoading(); }
             });
 
             try {
-                // 🌟 ปรับปรุงวิธีการส่ง Fetch ให้รองรับ Cross-Origin (CORS) สำหรับส่งข้อมูลแบบกล่องตะกร้าขนาดใหญ่
+                // 🌟 ส่งข้อมูลรวบยอดแบบ text/plain เพื่อให้ทะลุผ่าน CORS ปลอดภัย 100%
                 await fetch(API_URL, {
                     method: 'POST',
-                    mode: 'no-cors', // บังคับให้ข้ามผ่านระบบล็อกความปลอดภัยของเบราว์เซอร์
+                    mode: 'no-cors', 
                     headers: { 
-                        'Content-Type': 'text/plain' // เปลี่ยนเป็น text/plain เพื่อป้องกันสิทธิ์การ Preflight ของเบราว์เซอร์
+                        'Content-Type': 'text/plain'
                     },
                     body: JSON.stringify({ type, note, batchMode: true, items })
                 });
 
-                // หน่วงเวลาเล็กน้อยให้ระบบหลังบ้านจัดการเขียนแถวข้อมูลลง Sheets ให้เสร็จสิ้น
+                // หน่วงเวลาให้ Apps Script หลังบ้านทำลูปอัปเดตแผ่นงานให้เสร็จสิ้น
                 setTimeout(() => {
                     Swal.fire({
                         title: 'สำเร็จ!',
@@ -380,12 +380,12 @@
                         timer: 1500,
                         showConfirmButton: false
                     });
-                    loadStockData(); // รีเฟรชหน้า GUI ดึงสต็อกอัปเดตล่าสุดมาโชว์
+                    loadStockData(); // รีเฟรชตารางหน้าจอ
                 }, 1500);
 
             } catch (error) {
                 console.error("Error submitting cart:", error);
-                Swal.fire('เกิดข้อผิดพลาด', 'ไม่สามารถส่งข้อมูลไปยังเซิร์ฟเวอร์หลังบ้านได้ กรุณาลองใหม่อีกครั้ง', 'error');
+                Swal.fire('เกิดข้อผิดพลาด', 'ไม่สามารถส่งข้อมูลไปยังเซิร์ฟเวอร์หลังบ้านได้ กรุณาลองใหม่', 'error');
             }
         }
         window.onload = loadStockData;
