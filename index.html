@@ -75,7 +75,7 @@
     </div>
 
     <script>
-        // เปลี่ยนตรงนี้เป็น URL ของ Google Web App ที่ได้จากการ Deploy Script
+        // URL ของ Google Web App ที่ได้จากการ Deploy Script
         const API_URL = "https://script.google.com/macros/s/AKfycbymecrGnh6G01HYgT6PbODbnHWMP7AjIgCDQrarGv7ayPqZJVhcs_yidM9GoPWJtoCh/exec"; 
         let globalStockData = [];
 
@@ -109,7 +109,8 @@
                     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
                     
                     let expiryClass = "text-slate-600";
-                    if (cleanExpiry === "ไม่มี") {
+                    if (cleanExpiry === "ไม่มี" || !cleanExpiry) {
+                        cleanExpiry = "ไม่มี";
                         expiryClass = "text-slate-400 font-medium bg-slate-100 px-2 py-0.5 rounded";
                     } else if (diffDays <= 0) {
                         expiryClass = "text-rose-600 font-bold bg-rose-50 px-2 py-0.5 rounded";
@@ -122,7 +123,7 @@
                     row.innerHTML = `
                         <td class="py-4 px-6 font-mono text-slate-600 text-xs">${item.รหัสสินค้า}</td>
                         <td class="py-4 px-6 font-medium text-slate-900">${item.ชื่อสินค้า}</td>
-                        <td class="py-4 px-6 text-xs ${expiryClass}">${cleanExpiry || '-'}</td>
+                        <td class="py-4 px-6 text-xs ${expiryClass}">${cleanExpiry}</td>
                         <td class="py-4 px-6 text-right ${qtyClass}">${Number(item.คงเหลือ).toLocaleString()}</td>
                         <td class="py-4 px-6 text-slate-400 text-xs">${item.หน่วยนับ}</td>
                     `;
@@ -183,7 +184,6 @@
                                     <input id="swal-qty" type="number" min="1" class="w-full border border-slate-200 rounded-xl p-2.5" placeholder="ระบุจำนวน">
                                 </div>
                             </div>
-                            <!-- 🌟 แก้ไขจุดแจ้งเตือนของปุ่มใน SweetAlert -->
                             <div id="cart-error-msg" class="text-rose-500 text-xs hidden font-medium"></div>
                             <button type="button" onclick="addToCart('${actionType}')" class="w-full bg-slate-800 hover:bg-slate-900 text-white font-medium py-2 rounded-lg transition text-xs">
                                 📥 เพิ่มรายการนี้ลงตะกร้า
@@ -256,11 +256,27 @@
             unitInput.value = matchProduct ? (matchProduct.หน่วยนับ || "ชิ้น") : "ชิ้น";
 
             if(actionType === 'เบิกเข้า') {
-                container.innerHTML = `<input id="swal-expiry" type="date" class="w-full border border-slate-200 rounded-xl p-2.5 bg-white">`;
+                // 🌟 สำหรับเบิกเข้า: เพิ่ม Checkbox เลือกแบบ "ไม่มีวันหมดอายุ"
+                container.innerHTML = `
+                    <div class="space-y-2">
+                        <input id="swal-expiry" type="date" class="w-full border border-slate-200 rounded-xl p-2.5 bg-white">
+                        <label class="flex items-center gap-2 text-xs text-slate-600 cursor-pointer">
+                            <input type="checkbox" id="swal-no-expiry" onchange="toggleNoExpiry(this)" class="rounded border-slate-300 text-emerald-600 focus:ring-emerald-500">
+                            <span>ไม่มีวันหมดอายุ</span>
+                        </label>
+                    </div>
+                `;
             } else {
+                // 🌟 สำหรับขายออก / เบิกออก: ดึงรายการล็อตที่มีอยู่รวมถึงรายการที่ระบุว่า "ไม่มี"
                 const lots = globalStockData
                     .filter(item => item.รหัสสินค้า === code && item.คงเหลือ > 0)
-                    .sort((a, b) => new Date(a["ล็อต/วันหมดอายุ"]) - new Date(b["ล็อต/วันหมดอายุ"]));
+                    .sort((a, b) => {
+                        let expA = a["ล็อต/วันหมดอายุ"] || "";
+                        let expB = b["ล็อต/วันหมดอายุ"] || "";
+                        if (expA === "ไม่มี") return 1;
+                        if (expB === "ไม่มี") return -1;
+                        return new Date(expA) - new Date(expB);
+                    });
                     
                 if(lots.length === 0) {
                     container.innerHTML = `<select id="swal-expiry" class="w-full border border-slate-200 rounded-xl p-2.5 bg-rose-50 text-rose-500 font-medium" disabled><option value="">❌ ไม่มีสต็อกคงเหลือ</option></select>`;
@@ -270,10 +286,24 @@
                 let optionsHtml = lots.map(item => {
                     let rawExp = item["ล็อต/วันหมดอายุ"] ? item["ล็อต/วันหมดอายุ"].toString() : "";
                     let cleanExp = rawExp.includes('T') ? rawExp.split('T')[0] : rawExp;
+                    if (!cleanExp) cleanExp = "ไม่มี";
                     return `<option value="${cleanExp}">${cleanExp} (คงเหลือ: ${item.คงเหลือ})</option>`;
                 }).join('');
                 
                 container.innerHTML = `<select id="swal-expiry" class="w-full border border-slate-200 rounded-xl p-2.5 bg-white">${optionsHtml}</select>`;
+            }
+        }
+
+        // ฟังก์ชันสลับสถานะเมื่อติ๊กเลือก "ไม่มีวันหมดอายุ"
+        function toggleNoExpiry(checkbox) {
+            const expiryInput = document.getElementById('swal-expiry');
+            if (checkbox.checked) {
+                expiryInput.value = "";
+                expiryInput.disabled = true;
+                expiryInput.classList.add('bg-slate-100', 'text-slate-400');
+            } else {
+                expiryInput.disabled = false;
+                expiryInput.classList.remove('bg-slate-100', 'text-slate-400');
             }
         }
 
@@ -284,18 +314,24 @@
 
             const code = codeSelect.value;
             const productName = codeSelect.options[codeSelect.selectedIndex].text;
-            const expiryInput = document.getElementById('swal-expiry').value;
+            
+            const noExpiryCheckbox = document.getElementById('swal-no-expiry');
+            const isNoExpiryChecked = noExpiryCheckbox && noExpiryCheckbox.checked;
+            
+            const expiryInputEl = document.getElementById('swal-expiry');
+            const expiryInput = expiryInputEl ? expiryInputEl.value : "";
+            
             const qty = parseInt(document.getElementById('swal-qty').value);
             const unit = document.getElementById('swal-unit').value;
 
-            // 🌟 ปรับปรุงการแจ้งเตือนเงื่อนไขข้อผิดพลาดบนช่องย่อยใน SweetAlert ให้เสถียร
-            if(!code || !expiryInput || !qty || qty <= 0) {
-                errorMsg.innerText = "⚠️ กรุณาเลือกสินค้า วันหมดอายุ และระบุจำนวนให้ถูกต้อง";
+            // ตรวจสอบเงื่อนไขข้อผิดพลาด
+            if (!code || (!isNoExpiryChecked && !expiryInput) || !qty || qty <= 0) {
+                errorMsg.innerText = "⚠️ กรุณาเลือกสินค้า ระบุวันหมดอายุ (หรือเลือกไม่มี) และระบุจำนวนให้ถูกต้อง";
                 errorMsg.classList.remove('hidden');
                 return;
             }
 
-            let finalExpiry = expiryInput;
+            let finalExpiry = isNoExpiryChecked ? "ไม่มี" : expiryInput;
             if (finalExpiry && finalExpiry !== "ไม่มี") {
                 const dateObj = new Date(finalExpiry);
                 if (!isNaN(dateObj.getTime())) {
@@ -313,7 +349,7 @@
                 cartData.push({ code, productName, expiry: finalExpiry, qty, unit });
             }
 
-            // 🌟 เคลียร์ค่าช่องป้อนข้อมูลสินค้าและจำนวนหลังจากเพิ่มเสร็จ เพื่อให้เลือกชิ้นต่อไปได้สะดวก
+            // เคลียร์ค่าช่องป้อนข้อมูลหลังจากเพิ่มเสร็จ
             codeSelect.value = "";
             document.getElementById('swal-qty').value = "";
             document.getElementById('swal-unit').value = "";
@@ -360,23 +396,21 @@
                 didOpen: () => { Swal.showLoading(); }
             });
 
-            // 🌟 1. คำนวณค่า Checksum จากผลรวมจำนวนสินค้าทั้งหมดในตะกร้าฝั่งหน้าบ้าน
+            // คำนวณค่า Checksum จากผลรวมจำนวนสินค้าทั้งหมดในตะกร้าฝั่งหน้าบ้าน
             const clientChecksum = items.reduce((sum, item) => sum + parseInt(item.qty || 0), 0);
 
             try {
-                // เตรียมข้อมูลส่งในรูปแบบ FormData เพื่อให้หน้าบ้านสามารถอ่าน Response ตอบกลับจากหลังบ้านได้
                 const formData = new FormData();
                 const payload = {
                     type: type,
                     note: note,
                     batchMode: true,
                     items: items,
-                    checksum: clientChecksum // ส่งค่า checksum ไปให้หลังบ้านตรวจ
+                    checksum: clientChecksum
                 };
         
                 formData.append('jsonData', JSON.stringify(payload));
 
-                // 🌟 2. เปลี่ยนมา fetch แบบปกติเพื่อให้ได้ข้อมูลสถานะที่แท้จริงกลับมา
                 const response = await fetch(API_URL, {
                     method: 'POST',
                     body: formData
@@ -384,7 +418,6 @@
 
                 const result = await response.json();
 
-                // 🌟 3. ตรวจสอบผลลัพธ์จากหลังบ้าน หากหลังบ้านแจ้งตีกลับมาว่าพัง จะเด้งสีแดงแจ้งเตือนทันที
                 if (result.status === "success") {
                     Swal.fire({
                         title: 'สำเร็จ!',
